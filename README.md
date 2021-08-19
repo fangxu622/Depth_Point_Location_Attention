@@ -2,9 +2,10 @@ install cndnn
 
 conda install -c conda-forge cudnn
 
-export CUDNN_LIBRARY_PATH="/home/fangxu/anaconda3/envs/torch/lib":$CUDNN_LIBRARY_PATH
+```
+export CUDNN_LIBRARY_PATH="/home/fangxu/anaconda3/envs/torch/lib": $CUDNN_LIBRARY_PATH
 export CUDNN_INCLUDE_PATH="/home/fangxu/anaconda3/envs/torch/include":$CUDNN_INCLUDE_PATH
-
+```
 modify cache file 
 
 https://github.com/traveller59/spconv/issues/277
@@ -25,3 +26,5 @@ CUDNN_LIBRARY:FILEPATH=/home/c2/anaconda3/envs/cp2/lib/libcudnn.so
 CUDNN_LIBRARY_PATH:FILEPATH=/home/c2/anaconda3/envs/cp2/lib/libcudnn.so
 
 ```
+
+git pull --rebase origin main
