@@ -118,9 +118,8 @@ for e in range(epochs):
         base_t  = base_t.cuda()
         base_q = base_q.cuda()
         # for i in downpcd_arr.size(0):
-
-
-        downpcd_arr = torch.FloatTensor(downpcd_arr).cuda()
+        downpcd_arr = downpcd_arr.cuda()
+        #downpcd_arr = torch.FloatTensor(downpcd_arr).cuda()
 
         adam.zero_grad()
         x_t_base, x_q_base = model(img_base,downpcd_arr)

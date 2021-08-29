@@ -1,6 +1,7 @@
 import os
 import time
 import copy
+from typing import DefaultDict
 import torch
 # import torchvision
 # import pandas as pd
@@ -74,11 +75,11 @@ class PoseLoss(nn.Module):
         return loss, loss_x.item(), loss_q.item()
 
 class Depth_Net(nn.Module):
-    def __init__(self, out_channels,):
+    def __init__(self, out_channels=10):
         super(Depth_Net, self).__init__()
 
         base_model = models.resnet34(pretrained=True)
-        base_model.conv1 = nn.Conv2d(1,64,kernel_size=7,stride=2,padding=3,bias=False)
+        base_model.conv1 = nn.Conv2d(1,64,kernel_size=3,stride=1,padding=3,bias=False)
 
         feat_in = base_model.fc.in_features
         seq_net_list = list(base_model.children())[:-1]
@@ -100,9 +101,9 @@ class Depth_Net(nn.Module):
     def forward(self, x):
 
         x = self.resnet(x)
-        x = x.view(x.size(0), -1)
-        x = self.fc_last(x)
-
+        x = torch.flatten(x,1)
+        #x = x.view(x.size(0), -1)
+        #x = self.fc_last(x)
         return x 
 
 class PointNet2(nn.Module):
@@ -140,34 +141,39 @@ class PointNet2(nn.Module):
 
         return sa_vector
 
+
 class SpConvNet(nn.Module):
-    def __init__(self, shape):
+    def __init__(self,in_channel=3 ):
         super().__init__()
         self.net = spconv.SparseSequential(
-            spconv.SparseConv3d(32, 64, 3), # just like nn.Conv3d but don't support group and all([d > 1, s > 1])
+
+            spconv.SparseConv2d(in_channel, 64, 3,2), # just like nn.Conv3d but don't support group and all([d > 1, s > 1])
             nn.BatchNorm1d(64), # non-spatial layers can be used directly in SparseSequential.
             nn.ReLU(),
-            spconv.SubMConv3d(64, 64, 3, indice_key="subm0"),
+
+            spconv.SparseConv2d(64, 64, 5, 2),
             nn.BatchNorm1d(64),
             nn.ReLU(),
-            # when use submanifold convolutions, their indices can be shared to save indices generation time.
-            spconv.SubMConv3d(64, 64, 3, indice_key="subm0"),
-            nn.BatchNorm1d(64),
+            
+            spconv.SparseConv2d(64, 32, 5, 2),
+            nn.BatchNorm1d(32),
             nn.ReLU(),
-            spconv.SparseConvTranspose3d(64, 64, 3, 2),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
+
+            spconv.SparseMaxPool2d(2, 2),
             spconv.ToDense(), # convert spconv tensor to dense and convert it to NCHW format.
-            nn.Conv3d(64, 64, 3),
-            nn.BatchNorm1d(64),
+
+            nn.Conv2d(32,16, 3),
+            nn.BatchNorm2d(16),
             nn.ReLU(),
         )
-        self.shape = shape
 
-    def forward(self, features, coors, batch_size):
-        coors = coors.int() # unlike torch, this library only accept int coordinates.
-        x = spconv.SparseConvTensor(features, coors, self.shape, batch_size)
-        return self.net(x)# .dense()
+    def forward(self, x):
+        #coors = coors.int() # unlike torch, this library only accept int coordinates.
+        #x = spconv.SparseConvTensor(features, coors, self.shape, batch_size)
+        x = self.net(x)
+        x =torch.flatten(x,1)
+        return x # .dense()
+
 
 class AttentionBlock(nn.Module):
     def __init__(self, in_channels):
@@ -245,8 +251,75 @@ class fusion_model(nn.Module):
 
         return position, rotation
 
+class fusion_sp_model(nn.Module):
+    def __init__(self, fixed_weight=False, dropout_rate=0.0, bayesian=False):
+        super(fusion_sp_model, self).__init__()
+        self.bayesian = bayesian
+        self.dropout_rate = dropout_rate
+
+        # 1. create pcd net
+        # self.Pcd_Net = PointNet2( in_channel =3 ).cuda() # output: torch.Size([10, 15232])
+        self.Pcd_Net  = SpConvNet( in_channel = 3).cuda()
+        
+        # get pcd size
+        pcd_x = torch.randn(1, 512 * 600, 3).cuda()
+        # 转为 NHWC 格式
+        pcd_x = pcd_x.reshape(1, 512, 600, 3 ) # batch_szie, num point, feature
+        pcd_x_sp = spconv.SparseConvTensor.from_dense(pcd_x)
+        pcd_out_channel = self.Pcd_Net( pcd_x_sp ).size(1) 
+
+        # 2. create depth net  
+        self.Depth_Net = Depth_Net().cuda()
+        # get depth size
+        depth_channel = self.Depth_Net( torch.randn(1,1,224,224).cuda() ).size(1) 
+        
+        if fixed_weight:
+            for param in self.Depth_Net.parameters():
+                param.requires_grad = False
+
+        # 3. create self attention
+        fusion_vector_size = depth_channel + pcd_out_channel
+        self.attention = AttentionBlock( fusion_vector_size )
+            
+        self.fc_position = nn.Linear( fusion_vector_size , 3, bias=True)
+        self.fc_rotation = nn.Linear( fusion_vector_size , 4, bias=True)
+
+        init_modules = [self.fc_position, self.fc_rotation]
+        for module in init_modules:
+            if isinstance(module, nn.Conv2d) or isinstance(module, nn.Linear):
+                nn.init.kaiming_normal_(module.weight)
+                if module.bias is not None:
+                    nn.init.constant_(module.bias, 0)
+
+
+    def forward(self, x_depth, x_pcd):
+
+        x_depth = self.Depth_Net(x_depth) # (B,1360)
+        x_pcd = self.Pcd_Net(x_pcd) # (B,1360)
+
+        fusion_vector = torch.cat( [x_depth, x_pcd], dim = 1 )
+        att_out = self.attention( fusion_vector ) 
+
+        dropout_on = self.training or self.bayesian
+        if self.dropout_rate > 0:
+            att_out = F.dropout(att_out, p=self.dropout_rate, training=dropout_on)
+
+        position = self.fc_position(att_out)
+        rotation = self.fc_rotation(att_out)
+
+        return position, rotation
+
 
 ####
+
+
+def test_depth():
+    print("x")
+    x = torch.randn(10, 1, 224 , 224).cuda()
+    D_Net = Depth_Net().cuda()
+    x = D_Net(x)
+    print(x.shape) #torch.Size([10, 512, 1, 1])
+
 def test_pointnet():
     print("x")
     model = PointNet2().cuda()
@@ -255,11 +328,72 @@ def test_pointnet():
 
 def test_spconv():
     print("x")
-    model = PointNet2().cuda()
-    data = model( torch.randn(1,10,3).cuda() )#.size(1)
-    print(data.shape)
+    #假设一次读取点云 # batch_zie ， num , feature 
+    x = torch.randn(10, 256 * 256, 3).cuda()
+    # 转为 NHWC 格式
+    x = x.reshape(10, 256, 256, 3 ) # batch_szie, num point, feature
+    x_sp = spconv.SparseConvTensor.from_dense(x)
+
+    net = spconv.SparseSequential(
+            nn.BatchNorm1d(3),
+            spconv.SparseConv2d(3, 32, 3, 1),
+            nn.ReLU(),
+            spconv.SparseConv2d(32, 64, 3, 1),
+            nn.ReLU(),
+            spconv.SparseMaxPool2d(2, 2),
+            spconv.ToDense(), 
+        ).cuda()
+    x = net(x_sp)
+    print(x.shape)
+    #data = model(  )#.size(1)
+    #model = PointNet2().cuda()
+    #print(data.shape)
+
+def test_spconv2():
+    #pass
+    #假设一次读取点云 # batch_zie ， num , feature 
+    x = torch.randn(10, 512 * 600, 3).cuda()
+    # 转为 NHWC 格式
+    x = x.reshape(10, 512, 600, 3 ) # batch_szie, num point, feature
+    x_sp = spconv.SparseConvTensor.from_dense(x)
+    
+    model = SpConvNet(3).cuda()
+    x = model(x_sp)
+    print(x.shape) #torch.Size([10, 64, 123, 123])
+    x = torch.flatten(x, 1)
+    print(x.shape)
+
+def test_spconv3():
+    features =  torch.randn(256,6)# your features with shape [N, numPlanes]
+    indices =2 # your indices/coordinates with shape [N, ndim + 1], batch index must be put in indices[:, 0]
+    spatial_shape =16 # spatial shape of your sparse tensor, spatial_shape[i] is shape of indices[:, 1 + i].
+    batch_size =10 # batch size of your sparse tensor.
+    x = spconv.SparseConvTensor(features, indices, spatial_shape, batch_size)
+    x_dense_NCHW = x.dense() # convert sparse tensor to dense NCHW tensor.
+    print(x_dense_NCHW.sparity) # helper function to check sparity. 
+
+def test_atten():
+    x = torch.randn(10, 2360).cuda()
+    attention = AttentionBlock( 2360 ).cuda()
+    x =attention(x)
+    print(x.shape)
+
+def test_fusion():
+    depth_x = torch.randn(10, 1, 224 , 224).cuda()
+    pcd_x = torch.randn(10, 512 * 600, 3).cuda()
+    # 转为 NHWC 格式
+    pcd_x = pcd_x.reshape(10, 512, 600, 3 ) # batch_szie, num point, feature
+    pcd_x_sp = spconv.SparseConvTensor.from_dense(pcd_x)
+
+    fu_model = fusion_sp_model().cuda()
+    t1,q1 = fu_model(depth_x, pcd_x_sp )
+
+    print(t1.shape, q1.shape)
+
 
 if __name__=="__main__":
-    test_spconv()
+    #test_spconv2()
+    #test_depth()
     #test_pointnet()
-
+    #test_atten()
+    test_fusion()
