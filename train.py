@@ -32,20 +32,17 @@ if not os.path.exists(savedir):
 # step 2: logging setting, 输出到屏幕和日志
 logger = logging.getLogger(__name__)
 logger.setLevel(level = logging.INFO)
-log_path = os.path.join( savedir, str(int( time.time() )) )
-handler = logging.FileHandler(  )
+log_path = os.path.join( savedir, str(int( time.time() ))+".log" )
+handler = logging.FileHandler( log_path )
 handler.setLevel(logging.INFO)
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 handler.setFormatter(formatter)
 
 console = logging.StreamHandler()
 console.setLevel(logging.INFO)
- 
-logger.addHandler(handler)
-logger.addHandler(console)
 
-
-
+logger.addHandler(handler)  
+#logger.addHandler(console)
 
 ## step 2: data load
 data_dir = os.path.join( config.data_dir , config.scene )
@@ -73,13 +70,12 @@ test_loader = torch.utils.data.DataLoader(dataset_test, batch_size=config.batch_
 
 
 ## step 3: construct model 
-
 if config.backbone =="ponint++":
     model = Fuse_PPNet()
 elif config.backbone == "spconvnet":
     model = Fuse_SPNet()
 else:
-    logging.error("No model can be selected")
+    logger.error("No model can be selected")
     assert False
 
 criterion = nn.MSELoss()
@@ -99,7 +95,7 @@ Best_Pos_error = 9999.0
 Best_Ort_error = 9999.0
 
 for e in range(config.epochs):
-    logging.info('\n\nEpoch {} of {}'.format(e, config.epochs))
+    #logging.info('\n\nEpoch {} of {}'.format(e, config.epochs))
 
     model.train()
 
@@ -109,8 +105,7 @@ for e in range(config.epochs):
     t = 0
     for i, (img_base , downpcd_arr , base_t,base_q) in enumerate(train_loader):
 
-        if i % config.print_every == 0:
-            logging.info('Batch {} of {}'.format(i, len(train_loader)))
+
         # imgs_base = Variable(img_base.type(dtype))
         img_base = img_base.cuda()
         base_t  = base_t.cuda()
@@ -137,10 +132,14 @@ for e in range(config.epochs):
         loss.backward()
         adam.step()
         t = t+1
-    logging.info('Average translation loss over epoch = {}'.format(loss_t_counter / (t + 1)))
-    logging.info('Average orientation loss over epoch = {}'.format(loss_q_counter / (t + 1)))
+
+        if i % config.print_every == 0:
+            logger.info('epoch {}, batch:{}/{}, loss: {}'.format(e, i * config.print_every,len(train_loader), loss.data ) )
+
+    logger.info('Epoch:{}, Average translation loss over epoch = {}'.format(e, loss_t_counter / (t + 1)))
+    logger.info('Epoch:{}, Average orientation loss over epoch = {}'.format(e, loss_q_counter / (t + 1)))
     # print('Average content loss over epoch = {}'.format(loss_c_counter / (i + 1)))
-    logging.info('Average loss over epoch = {}'.format(loss_counter / (t + 1)))
+    logger.info('Epoch:{}, Average loss over epoch = {}'.format(e, loss_counter / (t + 1)))
 
     pdist = nn.PairwiseDistance(2)
     # if (e % 10 == 0):
@@ -188,7 +187,7 @@ for e in range(config.epochs):
             if dis_Err_i < Best_Pos_error:
                 Best_Pos_error = dis_Err_i
                 Best_Ort_error = ort2_Err_i
-                logging.info(Best_Pos_error, Best_Ort_error)
+                logger.info(Best_Pos_error, Best_Ort_error)
                 best_dict = os.path.join()
                 save_best_path = os.path.exists(savedir, 'Best_params.pt')
 
@@ -199,8 +198,8 @@ for e in range(config.epochs):
             median_lst.append([dis_Err_i, ort2_Err_i])
 
             # print('average Distance err  = {} ,average orientation error = {} average Error = {}'.format(loss_counter / j,sum(dis_Err_Count)/j, sum(ort_Err_count)/j))
-            logging.info('Media distance error  = {}, median orientation error2 = {}'.format(dis_Err_i, ort2_Err_i))
-            logging.info(median_lst)
+            logger.info('Media distance error  = {}, median orientation error2 = {}'.format(dis_Err_i, ort2_Err_i))
+            logger.info(median_lst)
 
 # if __name__=="__main__":
 

@@ -1,1 +1,1 @@
-from .utils import median
+from .utils import median,norm_q

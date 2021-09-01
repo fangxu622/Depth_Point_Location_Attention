@@ -8,12 +8,12 @@ dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTens
 
 ## datasetting
 data_dir = "/media/fangxu/Disk4T/LQ/data/"
-scence = "chess" #optional "chess", 
+scene = "chess" #optional "chess", 
 
 
 
 ## model selection
-backbone = "spconvnet" , # option : poinit++ , spconvnet
+backbone = "spconvnet" # option : poinit++ , spconvnet
 
 ## optimazation setting
 learning_rate = 1e-4
