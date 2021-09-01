@@ -1,8 +1,12 @@
 
-# 0. Update
+#  Update
     2021.8.29: 添加了各种test 函数，修改了数据加载类，修改了深度图像网络，添加了稀疏网络处理模块,模块测试通过。
+    2021.9.01: 更新 了训练流程，配置，日志模块，ponit++ backbone 待修改，spbackbone 可以用。
 
-# 1. Question and Description :
+# Usage
+    python train.py $config_file_path$
+
+# Question and Description :
 **Q1**: 读取点云没有使用降采样，open3d 降采样发现每次得到的点数维度都不一样。既然使用了稀疏处理，就 不用降采样了。，这样就可以解决batch_size 只能为1 的问题，之前好像有一个batch_size 大于1 无法训练，不知道是不是这个原因？（2021.8.29）
 
 **A1**：
