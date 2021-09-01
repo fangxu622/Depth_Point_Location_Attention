@@ -1,95 +1,93 @@
 # -*- coding: utf-8 -*-
 
+from platform import machine
 import torch
 from torch.utils.data._utils import collate
 from torchvision import datasets, transforms
-from torch.autograd import Variable
-from PIL import Image
 import torch.utils.data as data
-import os
-import sys
+import os, sys
 sys.path.append("./")
 sys.path.append("../")
 import math
 import torch.nn as nn
-from model import fusion_model
+from model import Fuse_SPNet, Fuse_PPNet, convert_pcd_to_spnet
 # from model.ResNet50 import Res50PoseRess,Res50PoseRess_rgb
 from dataset import data2d3d_loader
-
-def norm_q(x_q_base):
-
-    Norm = torch.norm(x_q_base, 2, 1)
-    norm_q_base = torch.div(torch.t(x_q_base), Norm)
-
-    return torch.t(norm_q_base)
+from mmcv import Config
+from utils import median, norm_q
+import logging, time
 
 
-def default_loader(path):
-    return Image.open(path).convert('I')
-
-# def default_loader(path):
-#     return Image.open(path).convert('RGB')
-
-def median(lst):
-    lst.sort()
-    if len(lst) % 2 == 1:
-        return lst[len(lst) // 2]
-    else:
-        return (lst[len(lst) // 2 - 1]+lst[len(lst) // 2]) / 2.0
-
-def my_collte_fn(batch):
-    #for _,pcd,
-    depth_data     = torch.stack([item[0] for item in batch])
-    pcd_data       = [item[1] for item in batch]  # each element is of size (1, h*, w*). where (h*, w*) changes from mask to another.
-    translate_data = torch.stack([item[2] for item in batch])
-    qq_data        = torch.stack([item[3] for item in batch])
-    
-    return depth_data, pcd_data,translate_data,qq_data
-
-
-learning_rate = 1e-4
-batch_size =1
-epochs = 500
-cuda = torch.cuda.is_available()
-dtype = torch.cuda.FloatTensor if cuda else torch.FloatTensor
-print_every = 32
-
+## step 1: config 
+config_path = sys.argv[1]
+assert os.path.exists(config_path)==True
+config = Config.fromfile(config_path)
+dtype = config.dtype # torch.cuda.FloatTensor if cuda else torch.FloatTensor
 torch.cuda.manual_seed(1)
 
-scene = 'chess'
-data_dir = '/media/fangxu/Disk4T/LQ/data/'+scene
+savedir = os.path.join(config.save_dir, config.save_prj, config.scene )  #'/media/fangxu/Disk4T/LQ/'+scene
+if not os.path.exists(savedir):
+    os.makedirs( savedir )
+
+# step 2: logging setting, 输出到屏幕和日志
+logger = logging.getLogger(__name__)
+logger.setLevel(level = logging.INFO)
+log_path = os.path.join( savedir, str(int( time.time() )) )
+handler = logging.FileHandler(  )
+handler.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+
+console = logging.StreamHandler()
+console.setLevel(logging.INFO)
+ 
+logger.addHandler(handler)
+logger.addHandler(console)
+
+
+
+
+## step 2: data load
+data_dir = os.path.join( config.data_dir , config.scene )
 # label_dir_train = data_dir+'/singleImg/train.txt'
-prep_train_transform = transforms.Compose([
+train_transform = transforms.Compose([
     transforms.Resize(256),
     transforms.RandomCrop(224),
     transforms.ToTensor()
 ])
 #1246
-dataset_train = data2d3d_loader(data_dir,seq_list = [1,2,4,6], scene ="chess",transform_depth =prep_train_transform)
-train_loader = torch.utils.data.DataLoader(dataset_train, batch_size=batch_size, shuffle=True)
+dataset_train = data2d3d_loader(data_dir,seq_list = [1,2,4,6], scene =config.scene , transform_depth =train_transform)
+train_loader = torch.utils.data.DataLoader(dataset_train, batch_size=config.batch_size, shuffle=True)
 
 ###
 
 # label_dir_test = data_dir+'/singleImg/test.txt'
-prep_test_transform = transforms.Compose([
+test_transform = transforms.Compose([
     transforms.Resize(256),
     transforms.CenterCrop(224),
     transforms.ToTensor()
 ])
 
-dataset_test = data2d3d_loader(data_dir,scene ="chess",seq_list = [3,5], transform_depth=prep_test_transform)
-test_loader = torch.utils.data.DataLoader(dataset_test, batch_size=1,  shuffle=False)
+dataset_test = data2d3d_loader(data_dir,scene =config.scene, seq_list = [3,5], transform_depth = test_transform)
+test_loader = torch.utils.data.DataLoader(dataset_test, batch_size=config.batch_size,  shuffle=False)
 
-model = fusion_model()
+
+## step 3: construct model 
+
+if config.backbone =="ponint++":
+    model = Fuse_PPNet()
+elif config.backbone == "spconvnet":
+    model = Fuse_SPNet()
+else:
+    logging.error("No model can be selected")
+    assert False
 
 criterion = nn.MSELoss()
 
-if cuda:
-    criterion.cuda()
-    model.cuda()
+criterion.cuda()
+model.cuda()
 
-adam = torch.optim.Adam(model.parameters(), lr=learning_rate, betas=(0.9, 0.999), weight_decay=1e-5)
-
+adam = torch.optim.Adam(model.parameters(), lr=config.learning_rate, betas=(0.9, 0.999), weight_decay=1e-5)
 
 loss_t_lst = []
 loss_q_lst = []
@@ -100,8 +98,8 @@ median_lst = []
 Best_Pos_error = 9999.0
 Best_Ort_error = 9999.0
 
-for e in range(epochs):
-    print('\n\nEpoch {} of {}'.format(e, epochs))
+for e in range(config.epochs):
+    logging.info('\n\nEpoch {} of {}'.format(e, config.epochs))
 
     model.train()
 
@@ -111,14 +109,15 @@ for e in range(epochs):
     t = 0
     for i, (img_base , downpcd_arr , base_t,base_q) in enumerate(train_loader):
 
-        if i % print_every == 0:
-            print('Batch {} of {}'.format(i, len(train_loader)))
+        if i % config.print_every == 0:
+            logging.info('Batch {} of {}'.format(i, len(train_loader)))
         # imgs_base = Variable(img_base.type(dtype))
         img_base = img_base.cuda()
         base_t  = base_t.cuda()
         base_q = base_q.cuda()
         # for i in downpcd_arr.size(0):
         downpcd_arr = downpcd_arr.cuda()
+        downpcd_arr = convert_pcd_to_spnet(downpcd_arr)
         #downpcd_arr = torch.FloatTensor(downpcd_arr).cuda()
 
         adam.zero_grad()
@@ -133,20 +132,17 @@ for e in range(epochs):
         loss_q_counter = loss_q_counter+loss_q.data
         loss = loss_t + loss_q
 
-
         loss_counter += loss.data
 
         loss.backward()
         adam.step()
         t = t+1
-    print('Average translation loss over epoch = {}'.format(loss_t_counter / (t + 1)))
-    print('Average orientation loss over epoch = {}'.format(loss_q_counter / (t + 1)))
+    logging.info('Average translation loss over epoch = {}'.format(loss_t_counter / (t + 1)))
+    logging.info('Average orientation loss over epoch = {}'.format(loss_q_counter / (t + 1)))
     # print('Average content loss over epoch = {}'.format(loss_c_counter / (i + 1)))
-    print('Average loss over epoch = {}'.format(loss_counter / (t + 1)))
+    logging.info('Average loss over epoch = {}'.format(loss_counter / (t + 1)))
 
     pdist = nn.PairwiseDistance(2)
-    savedir = '/media/fangxu/Disk4T/LQ/'+scene
-    isExists = os.path.exists(savedir)
     # if (e % 10 == 0):
     #     if(not isExists):
     #         os.mkdir(savedir)
@@ -165,9 +161,11 @@ for e in range(epochs):
             loss_counter = 0.
 
             for i, (img_base , downpcd_arr , base_t,base_q) in enumerate(train_loader):
-                imgs_ba = Variable(img_base.type(dtype))
+                #imgs_ba = Variable(img_base.type(dtype))
 
-                downpcd_arr = torch.FloatTensor(downpcd_arr).cuda()
+                imgs_ba = img_base.cuda()
+                downpcd_arr = downpcd_arr.cuda()
+                downpcd_arr = convert_pcd_to_spnet(downpcd_arr)
 
                 x_t_base, x_q_base = model(imgs_ba,downpcd_arr)
 
@@ -190,14 +188,20 @@ for e in range(epochs):
             if dis_Err_i < Best_Pos_error:
                 Best_Pos_error = dis_Err_i
                 Best_Ort_error = ort2_Err_i
-                print(Best_Pos_error, Best_Ort_error)
-                isExists = os.path.exists('/media/fangxu/Disk4T/LQ/depth/'+scene + '_Best_poseNetLSTM_params.pt')
+                logging.info(Best_Pos_error, Best_Ort_error)
+                best_dict = os.path.join()
+                save_best_path = os.path.exists(savedir, 'Best_params.pt')
+
+                isExists = os.path.exists( save_best_path )
                 if (isExists):
-                    os.remove('/media/fangxu/Disk4T/LQ/depth/'+scene + '_Best_poseNetLSTM_params.pt')
-                torch.save(model.state_dict(),
-                           '/media/fangxu/Disk4T/LQ/depth/'+scene + '_Best_poseNetLSTM_params.pt')
+                    os.remove(save_best_path )
+                torch.save(model.state_dict(), save_best_path )
             median_lst.append([dis_Err_i, ort2_Err_i])
 
             # print('average Distance err  = {} ,average orientation error = {} average Error = {}'.format(loss_counter / j,sum(dis_Err_Count)/j, sum(ort_Err_count)/j))
-            print('Media distance error  = {}, median orientation error2 = {}'.format(dis_Err_i, ort2_Err_i))
-            print(median_lst)
+            logging.info('Media distance error  = {}, median orientation error2 = {}'.format(dis_Err_i, ort2_Err_i))
+            logging.info(median_lst)
+
+# if __name__=="__main__":
+
+#     main()

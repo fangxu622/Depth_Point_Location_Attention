@@ -1,1 +1,1 @@
-from .New7scenesDaataloader import data2d3d_loader
+from .New7scenesDataloader import data2d3d_loader

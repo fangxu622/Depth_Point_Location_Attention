@@ -14,8 +14,7 @@ from torchvision import transforms, models, datasets
 import torch.nn.functional as F
 from mmdet3d.models import build_backbone
 from torchvision.transforms.transforms import ToPILImage
-# import matplotlib.pyplot as plt
-# from PIL import Image
+
 import spconv
 
 def model_parser(model='ResNet', fixed_weight=False, dropout_rate=0.0, bayesian=False):
@@ -38,6 +37,17 @@ def model_parser(model='ResNet', fixed_weight=False, dropout_rate=0.0, bayesian=
     #     assert 'Unvalid Model'
 
     #return network
+
+
+def convert_pcd_to_spnet(input_pcd):
+    #input_pcd : tensor type [batch_size, numpoint, feature]
+
+    b_s , nun_p, vec_length = input_pcd.shape
+    assert nun_p ==512 * 600
+    pcd_x = input_pcd.reshape(b_s, 512, 600, 3 ) # batch_szie, num point, feature
+    pcd_x_sp = spconv.SparseConvTensor.from_dense(pcd_x)
+
+    return pcd_x_sp
 
 class PoseLoss(nn.Module):
     def __init__(self, device, sx=0.0, sq=0.0, learn_beta=False):
@@ -202,9 +212,9 @@ class AttentionBlock(nn.Module):
         z = W_y + x
         return z
 
-class fusion_model(nn.Module):
+class Fuse_PPNet(nn.Module):
     def __init__(self, fixed_weight=False, dropout_rate=0.0, bayesian=False):
-        super(fusion_model, self).__init__()
+        super(Fuse_PNet, self).__init__()
         self.bayesian = bayesian
         self.dropout_rate = dropout_rate
 
@@ -226,6 +236,13 @@ class fusion_model(nn.Module):
             
         self.fc_position = nn.Linear( pcd_out_channel*2 , 3, bias=True)
         self.fc_rotation = nn.Linear( pcd_out_channel*2 , 4, bias=True)
+        
+        init_modules = [self.fc_position, self.fc_rotation]
+        for module in init_modules:
+            if isinstance(module, nn.Conv2d) or isinstance(module, nn.Linear):
+                nn.init.kaiming_normal_(module.weight)
+                if module.bias is not None:
+                    nn.init.constant_(module.bias, 0)
 
     def forward(self, x_depth, x_pcd):
 
@@ -239,21 +256,14 @@ class fusion_model(nn.Module):
         if self.dropout_rate > 0:
             att_out = F.dropout(att_out, p=self.dropout_rate, training=dropout_on)
 
-        init_modules = [self.fc_position, self.fc_rotation]
-        for module in init_modules:
-            if isinstance(module, nn.Conv2d) or isinstance(module, nn.Linear):
-                nn.init.kaiming_normal_(module.weight)
-                if module.bias is not None:
-                    nn.init.constant_(module.bias, 0)
-
         position = self.fc_position(att_out)
         rotation = self.fc_rotation(att_out)
 
         return position, rotation
 
-class fusion_sp_model(nn.Module):
+class Fuse_SPNet(nn.Module):
     def __init__(self, fixed_weight=False, dropout_rate=0.0, bayesian=False):
-        super(fusion_sp_model, self).__init__()
+        super(Fuse_SPNet, self).__init__()
         self.bayesian = bayesian
         self.dropout_rate = dropout_rate
 
@@ -385,7 +395,7 @@ def test_fusion():
     pcd_x = pcd_x.reshape(10, 512, 600, 3 ) # batch_szie, num point, feature
     pcd_x_sp = spconv.SparseConvTensor.from_dense(pcd_x)
 
-    fu_model = fusion_sp_model().cuda()
+    fu_model = Fuse_SPNet().cuda()
     t1,q1 = fu_model(depth_x, pcd_x_sp )
 
     print(t1.shape, q1.shape)
