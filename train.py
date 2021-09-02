@@ -19,7 +19,7 @@ import logging, time
 
 
 ## step 1: config 
-config_path = sys.argv[1]
+config_path = '/media/fangxu/Disk4T/fangxuPrj/Depth_Point_Location_Attention/config/conf_1.py'
 assert os.path.exists(config_path)==True
 config = Config.fromfile(config_path)
 dtype = config.dtype # torch.cuda.FloatTensor if cuda else torch.FloatTensor
@@ -30,7 +30,7 @@ if not os.path.exists(savedir):
     os.makedirs( savedir )
 
 # step 2: logging setting, 输出到屏幕和日志
-logger = logging.getLogger(__name__)
+logger = logging.getLogger()
 logger.setLevel(level = logging.INFO)
 log_path = os.path.join( savedir, str(int( time.time() ))+".log" )
 handler = logging.FileHandler( log_path )
@@ -55,8 +55,6 @@ train_transform = transforms.Compose([
 #1246
 dataset_train = data2d3d_loader(data_dir,seq_list = [1,2,4,6], scene =config.scene , transform_depth =train_transform)
 train_loader = torch.utils.data.DataLoader(dataset_train, batch_size=config.batch_size, shuffle=True)
-
-###
 
 # label_dir_test = data_dir+'/singleImg/test.txt'
 test_transform = transforms.Compose([
@@ -105,15 +103,12 @@ for e in range(config.epochs):
     t = 0
     for i, (img_base , downpcd_arr , base_t,base_q) in enumerate(train_loader):
 
-
-        # imgs_base = Variable(img_base.type(dtype))
         img_base = img_base.cuda()
         base_t  = base_t.cuda()
         base_q = base_q.cuda()
-        # for i in downpcd_arr.size(0):
+
         downpcd_arr = downpcd_arr.cuda()
         downpcd_arr = convert_pcd_to_spnet(downpcd_arr)
-        #downpcd_arr = torch.FloatTensor(downpcd_arr).cuda()
 
         adam.zero_grad()
         x_t_base, x_q_base = model(img_base,downpcd_arr)
@@ -142,11 +137,6 @@ for e in range(config.epochs):
     logger.info('Epoch:{}, Average loss over epoch = {}'.format(e, loss_counter / (t + 1)))
 
     pdist = nn.PairwiseDistance(2)
-    # if (e % 10 == 0):
-    #     if(not isExists):
-    #         os.mkdir(savedir)
-    #
-    #     torch.save(model.state_dict(), ('/media/fangxu/Disk4T/LQ/depth/'+scene+'/fuse2d3d_params_epoch{}.pt').format(e))
 
     if (e > -1 and e % 10 == 0):
 
@@ -160,7 +150,6 @@ for e in range(config.epochs):
             loss_counter = 0.
 
             for i, (img_base , downpcd_arr , base_t,base_q) in enumerate(train_loader):
-                #imgs_ba = Variable(img_base.type(dtype))
 
                 imgs_ba = img_base.cuda()
                 downpcd_arr = downpcd_arr.cuda()
@@ -188,9 +177,8 @@ for e in range(config.epochs):
                 Best_Pos_error = dis_Err_i
                 Best_Ort_error = ort2_Err_i
                 logger.info(Best_Pos_error, Best_Ort_error)
-                best_dict = os.path.join()
-                save_best_path = os.path.exists(savedir, 'Best_params.pt')
 
+                save_best_path = os.path.join(savedir, 'Best_params.pt')
                 isExists = os.path.exists( save_best_path )
                 if (isExists):
                     os.remove(save_best_path )

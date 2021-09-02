@@ -17,7 +17,7 @@ backbone = "spconvnet" # option : poinit++ , spconvnet
 
 ## optimazation setting
 learning_rate = 1e-4
-batch_size =1
+batch_size =4
 epochs = 500
 
 ## log setting
