@@ -1,3 +1,4 @@
+from ast import ExtSlice
 from fnmatch import translate
 import torch
 from PIL import Image
@@ -12,6 +13,7 @@ from torchvision import transforms
 import MinkowskiEngine as ME
 from scipy.linalg import expm, norm
 import random,math
+
 
 class data2d3d_loader(Dataset):
 
@@ -152,7 +154,10 @@ class New7Scene_dataset(Dataset):
         t = pose[:3,3]
         q_arr = quaternion.as_float_array(q)#[np.newaxis,:]
 
-        result = ( img_depth, pcd_tensor, torch.from_numpy(t).to(torch.float), torch.from_numpy(q_arr).to(torch.float) )
+        result = ( img_depth, 
+                    pcd_tensor.to(torch.float), 
+                    torch.from_numpy(t).to(torch.float), 
+                    torch.from_numpy(q_arr).to(torch.float) )
 
         return  result
 

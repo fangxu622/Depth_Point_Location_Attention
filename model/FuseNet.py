@@ -91,7 +91,7 @@ class Depth_Net(nn.Module):
         x = self.resnet(x)
         x = torch.flatten(x,1)
         #x = x.view(x.size(0), -1)
-        #x = self.fc_last(x)
+        x = self.fc_last(x)
         return x 
 
 class PointNet2(nn.Module):
@@ -165,10 +165,10 @@ class Fuse_PPNet(nn.Module):
 
         # 1. create pcd net
         self.Pcd_Net = make_model(cfg) # out put (B , 256)
-        
+        pcd_out_channel = cfg.output_dim 
 
         # 2. create depth net  
-        self.Depth_Net = Depth_Net( pcd_out_channel )
+        self.Depth_Net = Depth_Net( out_channels = pcd_out_channel )
         
         if fixed_weight:
             for param in self.Depth_Net.parameters():
@@ -189,12 +189,10 @@ class Fuse_PPNet(nn.Module):
 
     def forward(self, x_depth, x_pcd):
 
-        x_depth = self.Depth_Net(x_depth) # (B,1360)
-        x_pcd = self.Pcd_Net(x_pcd) # (B,1360)
-
+        x_depth = self.Depth_Net(x_depth) 
+        x_pcd = self.Pcd_Net(x_pcd)
         fusion_vector = torch.cat( [x_depth, x_pcd], dim = 1 )
         att_out = self.attention( fusion_vector )
-
 
         dropout_on = self.training or self.bayesian
         if self.dropout_rate > 0:
@@ -263,94 +261,3 @@ class Fuse_SPNet(nn.Module):
         rotation = self.fc_rotation(att_out)
 
         return position, rotation
-
-##
-
-
-####
-
-
-def test_depth():
-    print("x")
-    x = torch.randn(10, 1, 224 , 224).cuda()
-    D_Net = Depth_Net().cuda()
-    x = D_Net(x)
-    print(x.shape) #torch.Size([10, 512, 1, 1])
-
-def test_pointnet():
-    print("x")
-    model = PointNet2().cuda()
-    data = model( torch.randn(1,10,3).cuda() )#.size(1)
-    print(data.shape) # torch.Size([1, 1360])
-
-def test_spconv():
-    print("x")
-    #假设一次读取点云 # batch_zie ， num , feature 
-    x = torch.randn(10, 256 * 256, 3).cuda()
-    # 转为 NHWC 格式
-    x = x.reshape(10, 256, 256, 3 ) # batch_szie, num point, feature
-    x_sp = spconv.SparseConvTensor.from_dense(x)
-
-    net = spconv.SparseSequential(
-            nn.BatchNorm1d(3),
-            spconv.SparseConv2d(3, 32, 3, 1),
-            nn.ReLU(),
-            spconv.SparseConv2d(32, 64, 3, 1),
-            nn.ReLU(),
-            spconv.SparseMaxPool2d(2, 2),
-            spconv.ToDense(), 
-        ).cuda()
-    x = net(x_sp)
-    print(x.shape)
-    #data = model(  )#.size(1)
-    #model = PointNet2().cuda()
-    #print(data.shape)
-
-def test_spconv2():
-    #pass
-    #假设一次读取点云 # batch_zie ， num , feature 
-    x = torch.randn(10, 512 * 600, 3).cuda()
-    # 转为 NHWC 格式
-    x = x.reshape(10, 512, 600, 3 ) # batch_szie, num point, feature
-    x_sp = spconv.SparseConvTensor.from_dense(x)
-    
-    model = SpConvNet(3).cuda()
-    x = model(x_sp)
-    print(x.shape) #torch.Size([10, 64, 123, 123])
-    x = torch.flatten(x, 1)
-    print(x.shape)
-
-def test_spconv3():
-    features =  torch.randn(256,6)# your features with shape [N, numPlanes]
-    indices =2 # your indices/coordinates with shape [N, ndim + 1], batch index must be put in indices[:, 0]
-    spatial_shape =16 # spatial shape of your sparse tensor, spatial_shape[i] is shape of indices[:, 1 + i].
-    batch_size =10 # batch size of your sparse tensor.
-    x = spconv.SparseConvTensor(features, indices, spatial_shape, batch_size)
-    x_dense_NCHW = x.dense() # convert sparse tensor to dense NCHW tensor.
-    print(x_dense_NCHW.sparity) # helper function to check sparity. 
-
-def test_atten():
-    x = torch.randn(10, 2360).cuda()
-    attention = AttentionBlock( 2360 ).cuda()
-    x =attention(x)
-    print(x.shape)
-
-def test_fusion():
-    depth_x = torch.randn(10, 1, 224 , 224).cuda()
-    pcd_x = torch.randn(10, 512 * 600, 3).cuda()
-    # 转为 NHWC 格式
-    pcd_x = pcd_x.reshape(10, 512, 600, 3 ) # batch_szie, num point, feature
-    pcd_x_sp = spconv.SparseConvTensor.from_dense(pcd_x)
-
-    fu_model = Fuse_SPNet().cuda()
-    t1,q1 = fu_model(depth_x, pcd_x_sp )
-
-    print(t1.shape, q1.shape)
-
-
-if __name__=="__main__":
-    #test_spconv2()
-    #test_depth()
-    #test_pointnet()
-    #test_atten()
-    test_fusion()
