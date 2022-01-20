@@ -12,31 +12,9 @@ import torch.nn as nn
 # from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, models, datasets
 import torch.nn.functional as F
-from mmdet3d.models import build_backbone
+#from mmdet3d.models import build_backbone
 from torchvision.transforms.transforms import ToPILImage
-
-import spconv
-
-def model_parser(model='ResNet', fixed_weight=False, dropout_rate=0.0, bayesian=False):
-    pass
-
-    # if model == 'GoogleNet':
-    #     base_model = models.inception_v3(pretrained=True)
-    #     base_model.Conv2d_1a_3x3.conv = nn.Conv2d(1,32,kernel_size=3,stride=2,bias=False)
-    #     # print(base_model)
-    #     network = GoogleNet(base_model, fixed_weight, dropout_rate)
-
-    # elif model == 'ResNet':
-    #     base_model = models.resnet34(pretrained=True)
-    #     base_model.conv1 = nn.Conv2d(1,64,kernel_size=7,stride=2,padding=3,bias=False)
-    #     network = ResNet(base_model, fixed_weight, dropout_rate, bayesian)
-    # elif model == 'ResnetSimple':
-    #     base_model = models.resnet34(pretrained=True)
-    #     network = ResNetSimple(base_model, fixed_weight)
-    # else:
-    #     assert 'Unvalid Model'
-
-    #return network
+from .model_utils import make_model 
 
 
 def convert_pcd_to_spnet(input_pcd):
@@ -152,39 +130,6 @@ class PointNet2(nn.Module):
         return sa_vector
 
 
-class SpConvNet(nn.Module):
-    def __init__(self,in_channel=3 ):
-        super().__init__()
-        self.net = spconv.SparseSequential(
-
-            spconv.SparseConv2d(in_channel, 64, 3,2), # just like nn.Conv3d but don't support group and all([d > 1, s > 1])
-            nn.BatchNorm1d(64), # non-spatial layers can be used directly in SparseSequential.
-            nn.ReLU(),
-
-            spconv.SparseConv2d(64, 64, 5, 2),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
-            
-            spconv.SparseConv2d(64, 32, 5, 2),
-            nn.BatchNorm1d(32),
-            nn.ReLU(),
-
-            spconv.SparseMaxPool2d(2, 2),
-            spconv.ToDense(), # convert spconv tensor to dense and convert it to NCHW format.
-
-            nn.Conv2d(32,16, 3),
-            nn.BatchNorm2d(16),
-            nn.ReLU(),
-        )
-
-    def forward(self, x):
-        #coors = coors.int() # unlike torch, this library only accept int coordinates.
-        #x = spconv.SparseConvTensor(features, coors, self.shape, batch_size)
-        x = self.net(x)
-        x =torch.flatten(x,1)
-        return x # .dense()
-
-
 class AttentionBlock(nn.Module):
     def __init__(self, in_channels):
         super(AttentionBlock, self).__init__()
@@ -213,16 +158,14 @@ class AttentionBlock(nn.Module):
         return z
 
 class Fuse_PPNet(nn.Module):
-    def __init__(self, fixed_weight=False, dropout_rate=0.0, bayesian=False):
-        super(Fuse_PNet, self).__init__()
+    def __init__(self,cfg=None, fixed_weight=False, dropout_rate=0.0, bayesian=False):
+        super(Fuse_PPNet, self).__init__()
         self.bayesian = bayesian
         self.dropout_rate = dropout_rate
 
         # 1. create pcd net
-        self.Pcd_Net = PointNet2( in_channels =3 ).cuda() # out put (B , 1360)
+        self.Pcd_Net = make_model(cfg) # out put (B , 256)
         
-        #     get fusion size
-        pcd_out_channel = self.Pcd_Net( torch.randn(1,1,3).cuda() ).size(1)
 
         # 2. create depth net  
         self.Depth_Net = Depth_Net( pcd_out_channel )
@@ -250,7 +193,8 @@ class Fuse_PPNet(nn.Module):
         x_pcd = self.Pcd_Net(x_pcd) # (B,1360)
 
         fusion_vector = torch.cat( [x_depth, x_pcd], dim = 1 )
-        att_out = self.attention( fusion_vector ) 
+        att_out = self.attention( fusion_vector )
+
 
         dropout_on = self.training or self.bayesian
         if self.dropout_rate > 0:
@@ -288,7 +232,8 @@ class Fuse_SPNet(nn.Module):
                 param.requires_grad = False
 
         # 3. create self attention
-        fusion_vector_size = depth_channel + pcd_out_channel
+        # fusion_vector_size = depth_channel + pcd_out_channel
+        fusion_vector_size = pcd_out_channel
         self.attention = AttentionBlock( fusion_vector_size )
             
         self.fc_position = nn.Linear( fusion_vector_size , 3, bias=True)
@@ -308,8 +253,8 @@ class Fuse_SPNet(nn.Module):
         x_pcd = self.Pcd_Net(x_pcd) # (B,1360)
 
         fusion_vector = torch.cat( [x_depth, x_pcd], dim = 1 )
-        att_out = self.attention( fusion_vector ) 
-
+        att_out = self.attention( x_pcd )
+        # att_out = fusion_vector
         dropout_on = self.training or self.bayesian
         if self.dropout_rate > 0:
             att_out = F.dropout(att_out, p=self.dropout_rate, training=dropout_on)
@@ -318,6 +263,8 @@ class Fuse_SPNet(nn.Module):
         rotation = self.fc_rotation(att_out)
 
         return position, rotation
+
+##
 
 
 ####

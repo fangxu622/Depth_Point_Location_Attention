@@ -6,22 +6,37 @@ import torch
 dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
 
 
-## datasetting
+# datasetting
 data_dir = "/media/fangxu/Disk4T/LQ/data/"
 scene = "chess" #optional "chess", 
+train_seq_list = [1,2,3,4]
+val_seq_list = [5,6]
+aug_mode = 1 
+mink_quantization_size = 0.01
+num_workers = 8
 
 
+# Model setting
+feature_size = 256
+output_dim =  256      # Size of the final descriptor
 
-## model selection
-backbone = "spconvnet" # option : poinit++ , spconvnet
+# Size of the local features from backbone network (only for MinkNet based models)
+# For PointNet-based models we always use 1024 intermediary features
+planes = [32,64,64]
+layers = 1,1,1
+num_top_down = 1
+conv0_kernel_size = 5
+
+model_name="MinkFPN_GeM"
+backbone = "point++" # option : poinit++ , spconvnet
 
 ## optimazation setting
 learning_rate = 1e-4
-batch_size =4
+batch_size =2
 epochs = 500
 
 ## log setting
-log_file = ""
+log_file = "MinkFPN_GeM"
 print_every = 32
 
 save_dir = "/media/fangxu/Disk4T/fangxuPrj/Depth_Point_Location_Attention/Res"

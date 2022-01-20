@@ -63,12 +63,13 @@ test_transform = transforms.Compose([
     transforms.ToTensor()
 ])
 
+
 dataset_test = data2d3d_loader(data_dir,scene =config.scene, seq_list = [3,5], transform_depth = test_transform)
-test_loader = torch.utils.data.DataLoader(dataset_test, batch_size=config.batch_size,  shuffle=False)
+test_loader = torch.utils.data.DataLoader(dataset_test, batch_size=1,  shuffle=False)
 
 
 ## step 3: construct model 
-if config.backbone =="ponint++":
+if config.backbone =="point++":
     model = Fuse_PPNet()
 elif config.backbone == "spconvnet":
     model = Fuse_SPNet()
@@ -144,12 +145,11 @@ for e in range(config.epochs):
         with torch.no_grad():
 
             dis_Err_Count = []
-
             ort2_Err_count = []
 
             loss_counter = 0.
 
-            for i, (img_base , downpcd_arr , base_t,base_q) in enumerate(train_loader):
+            for i, (img_base , downpcd_arr , base_t,base_q) in enumerate(test_loader):
 
                 imgs_ba = img_base.cuda()
                 downpcd_arr = downpcd_arr.cuda()
@@ -166,7 +166,6 @@ for e in range(config.epochs):
                 x_q_base = norm_q(x_q_base)
 
                 Ort_Err2 = float(2 * torch.acos(torch.abs(torch.sum(base_q * x_q_base, 1))) * 180.0 / math.pi)
-
                 ort2_Err_count.append(Ort_Err2)
                 # result.append([dis_Err,Ort_Err2])
 
@@ -176,9 +175,9 @@ for e in range(config.epochs):
             if dis_Err_i < Best_Pos_error:
                 Best_Pos_error = dis_Err_i
                 Best_Ort_error = ort2_Err_i
-                logger.info(Best_Pos_error, Best_Ort_error)
+                logger.info("{}, {}".format(Best_Pos_error, Best_Ort_error))
 
-                save_best_path = os.path.join(savedir, 'Best_params.pt')
+                save_best_path = os.path.join(savedir, 'Best_params_pcd_att.pt')
                 isExists = os.path.exists( save_best_path )
                 if (isExists):
                     os.remove(save_best_path )
@@ -187,7 +186,7 @@ for e in range(config.epochs):
 
             # print('average Distance err  = {} ,average orientation error = {} average Error = {}'.format(loss_counter / j,sum(dis_Err_Count)/j, sum(ort_Err_count)/j))
             logger.info('Media distance error  = {}, median orientation error2 = {}'.format(dis_Err_i, ort2_Err_i))
-            logger.info(median_lst)
+            logger.info( str(median_lst) )
 
 # if __name__=="__main__":
 
