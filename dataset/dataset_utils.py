@@ -89,9 +89,9 @@ def make_datasets(cfg):
         transforms.ToTensor()
         ])
 
-    datasets['train'] = New7Scene_dataset(data_dir = cfg.data_dir, scene = cfg.scene, seq_list= cfg.train_seq_list, transform_depth=transform_depth, transform_pcd=train_transform, set_transform=train_set_transform)
+    datasets['train'] = New7Scene_dataset(data_dir = cfg.data_dir, scene = cfg.scene, seq_list= cfg.train_seq_list, transform_depth=transform_depth, transform_pcd=train_transform,  set_transform=train_set_transform)#
 
-    datasets['val'] = New7Scene_dataset(data_dir = cfg.data_dir, scene = cfg.scene, seq_list= cfg.val_seq_list, transform_depth=transform_depth,)
+    datasets['val'] = New7Scene_dataset(data_dir = cfg.data_dir, scene = cfg.scene, seq_list= cfg.val_seq_list, transform_depth=transform_depth, )
 
     return datasets
 

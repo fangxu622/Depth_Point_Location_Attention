@@ -94,7 +94,7 @@ for e in range(config.epochs):
         t = t+1
 
         if i % config.print_every == 0:
-            logger.info('epoch {}, batch:{}/{}, loss: {}'.format(e, i * config.print_every,len(train_loader), loss.data ) )
+            logger.info('epoch {}, batch:{}/{}, loss: {}'.format(e, i ,len(train_loader), loss.data ) )
 
     logger.info('Epoch:{}, Average translation loss over epoch = {}'.format(e, loss_t_counter / (t + 1)))
     logger.info('Epoch:{}, Average orientation loss over epoch = {}'.format(e, loss_q_counter / (t + 1)))
@@ -113,19 +113,19 @@ for e in range(config.epochs):
 
             for i, (img_base , pcd_base , base_t,base_q) in enumerate(test_loader):
 
-                imgs_base = img_base.to(device)
+                img_base = img_base.to(device)
                 pcd_base = {e: pcd_base[e].to(device) for e in pcd_base}
                 base_t = base_t.to(device)
                 base_q = base_q.to(device)
 
-                x_t_base, x_q_base = model(img_base,pcd_base)
+                x_t_infer, x_q_infer = model(img_base,pcd_base)
 
-                dis_Err = pdist(x_t_base, base_t)
+                dis_Err = pdist(x_t_infer, base_t)
                 dis_Err_Count.append(float(dis_Err))
 
                 x_q_base = norm_q(x_q_base)
 
-                Ort_Err2 = float(2 * torch.acos(torch.abs(torch.sum(base_q * x_q_base, 1))) * 180.0 / math.pi)
+                Ort_Err2 = float(2 * torch.acos(torch.abs(torch.sum(base_q * x_q_infer, 1))) * 180.0 / math.pi)
                 ort2_Err_count.append(Ort_Err2)
                 # result.append([dis_Err,Ort_Err2])
 

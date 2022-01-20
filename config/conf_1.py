@@ -13,7 +13,7 @@ train_seq_list = [1,2,3,4]
 val_seq_list = [5,6]
 aug_mode = 1 
 mink_quantization_size = 0.01
-num_workers = 4
+num_workers = 8
 
 
 # Model setting
@@ -28,16 +28,15 @@ num_top_down = 1
 conv0_kernel_size = 5
 
 model_name="MinkFPN_GeM"
-backbone = "point++" # option : poinit++ , spconvnet
 
 ## optimazation setting
 learning_rate = 1e-4
-batch_size =2
+batch_size =20
 epochs = 500
 
 ## log setting
 log_file = "MinkFPN_GeM"
-print_every = 32
+print_every = 4
 
 save_dir = "/media/fangxu/Disk4T/fangxuPrj/Depth_Point_Location_Attention/Res"
 save_prj="experiment_1"
