@@ -108,7 +108,7 @@ for e in range(config.epochs):
         model.eval()
         with torch.no_grad():
             dis_Err_Count = []
-            ort2_Err_count = []
+            ort_Err_count = []
             loss_counter = 0
 
             for i, (img_base , pcd_base , base_t,base_q) in enumerate(test_loader):
@@ -120,21 +120,22 @@ for e in range(config.epochs):
 
                 x_t_infer, x_q_infer = model(img_base,pcd_base)
 
-                dis_Err = pdist(x_t_infer, base_t)
-                dis_Err_Count.append(float(dis_Err))
+                dis_Err = pdist(x_t_infer, base_t).sum().item()#.cpu().numpy()
+                dis_Err_Count.append(dis_Err )
 
-                x_q_base = norm_q(x_q_base)
+                x_q_infer = norm_q(x_q_infer)
 
-                Ort_Err2 = float(2 * torch.acos(torch.abs(torch.sum(base_q * x_q_infer, 1))) * 180.0 / math.pi)
-                ort2_Err_count.append(Ort_Err2)
+                ort_Err = 2 * torch.acos(torch.abs(torch.sum(base_q * x_q_infer, 1))) * 180.0 / math.pi
+
+                ort_Err_count.append( ort_Err.sum().item() )
                 # result.append([dis_Err,Ort_Err2])
 
             dis_Err_i = median(dis_Err_Count)
-            ort2_Err_i = median(ort2_Err_count)
+            ort_Err_i = median(ort_Err_count)
 
             if dis_Err_i < Best_Pos_error:
                 Best_Pos_error = dis_Err_i
-                Best_Ort_error = ort2_Err_i
+                Best_Ort_error = ort_Err_i
                 logger.info("{}, {}".format(Best_Pos_error, Best_Ort_error))
 
                 save_best_path = os.path.join(savedir, 'Best_params_pcd_att.pt')
@@ -142,11 +143,10 @@ for e in range(config.epochs):
                 if (isExists):
                     os.remove(save_best_path )
                 torch.save(model.state_dict(), save_best_path )
-            median_lst.append([dis_Err_i, ort2_Err_i])
-
+  
             # print('average Distance err  = {} ,average orientation error = {} average Error = {}'.format(loss_counter / j,sum(dis_Err_Count)/j, sum(ort_Err_count)/j))
-            logger.info('Media distance error  = {}, median orientation error2 = {}'.format(dis_Err_i, ort2_Err_i))
-            logger.info( str(median_lst) )
+            logger.info('Media distance error (sum) = {}, Median orientation error (sum) = {}'.format(dis_Err_i, ort_Err_i))
+
 
 # if __name__=="__main__":
 #     print("x")

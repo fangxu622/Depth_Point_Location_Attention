@@ -9,7 +9,7 @@ dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTens
 # datasetting
 data_dir = "/media/fangxu/Disk4T/LQ/data/"
 scene = "chess" #optional "chess", 
-train_seq_list = [1,2,3,4]
+train_seq_list = [1,2,3,4]#
 val_seq_list = [5,6]
 aug_mode = 1 
 mink_quantization_size = 0.01
