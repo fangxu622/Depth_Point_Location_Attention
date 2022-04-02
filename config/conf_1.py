@@ -9,11 +9,12 @@ dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTens
 # datasetting
 data_dir = "/media/fangxu/Disk4T/LQ/data/"
 scene = "chess" #optional "chess", 
-train_seq_list = [1,2,3,4]#
-val_seq_list = [5,6]
+train_seq_list = [1,2,4,6]#
+val_seq_list = [3,5]
 aug_mode = 1 
 mink_quantization_size = 0.01
 num_workers = 8
+input_type = [ "depth","pcd" ]
 
 
 # Model setting
@@ -27,11 +28,14 @@ layers = 1,1,1
 num_top_down = 1
 conv0_kernel_size = 5
 
+pretrain_weight =None #"/media/fangxu/Disk4T/fangxuPrj/Depth_Point_Location_Attention/Res/experiment_1/chess/Best_params_pcd_att_90.pt"
+
 model_name="MinkFPN_GeM"
 
 ## optimazation setting
-learning_rate = 1e-4
-batch_size =20
+learning_rate = 1e-5
+train_batch_size =10
+val_batch_size =1
 epochs = 500
 
 ## log setting

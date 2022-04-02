@@ -203,6 +203,40 @@ class Fuse_PPNet(nn.Module):
 
         return position, rotation
 
+
+
+class Pose_Depth_Net(nn.Module):
+    def __init__(self, out_channels=10):
+        super(Pose_Depth_Net, self).__init__()
+
+        base_model = models.resnet34(pretrained=True)
+        base_model.conv1 = nn.Conv2d(1,64,kernel_size=3,stride=1,padding=3,bias=False)
+
+        feat_in = base_model.fc.in_features
+        seq_net_list = list(base_model.children())[:-1]
+
+        self.fc_last = nn.Linear(feat_in, out_channels , bias=True)
+        # seq_net_list.append( self.fc_last )
+
+        init_modules = [self.fc_last]
+
+        for module in init_modules:
+            if isinstance(module, nn.Conv2d) or isinstance(module, nn.Linear):
+                nn.init.kaiming_normal_(module.weight)
+                if module.bias is not None:
+                    nn.init.constant_(module.bias, 0)
+        
+        self.resnet = nn.Sequential( *seq_net_list )
+        # print(self.resnet)
+
+    def forward(self, x):
+
+        x = self.resnet(x)
+        x = torch.flatten(x,1)
+        #x = x.view(x.size(0), -1)
+        x = self.fc_last(x)
+        return x[:,:3],x[:,3:]
+
 class Fuse_SPNet(nn.Module):
     def __init__(self, fixed_weight=False, dropout_rate=0.0, bayesian=False):
         super(Fuse_SPNet, self).__init__()

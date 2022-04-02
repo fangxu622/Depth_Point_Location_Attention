@@ -1,4 +1,5 @@
 thirdparty/
 Res/
 .idea/
+mmclassification/
 *.pyc

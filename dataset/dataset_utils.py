@@ -64,15 +64,22 @@ def make_dataloaders(cfg):
     dataloders = {}
 
     # Collate function collates items into a batch and applies a 'set transform' on the entire batch
-    train_collate_fn = make_collate_fn(datasets['train'],  cfg.mink_quantization_size)
+    if "pcd" in cfg.input_type:
+        train_collate_fn = make_collate_fn(datasets['train'],  cfg.mink_quantization_size)
+        val_collate_fn = make_collate_fn(datasets['val'], cfg.mink_quantization_size)
+    else:
+        train_collate_fn = None
+        val_collate_fn = None
+
     dataloders['train'] = DataLoader(datasets['train'],  collate_fn=train_collate_fn,
-                                     num_workers=cfg.num_workers, batch_size=cfg.batch_size,pin_memory=True)
+                                     num_workers=cfg.num_workers, batch_size=cfg.train_batch_size,pin_memory=True)
 
     # Collate function collates items into a batch and applies a 'set transform' on the entire batch
     # Currently validation dataset has empty set_transform function, but it may change in the future
-    val_collate_fn = make_collate_fn(datasets['val'], cfg.mink_quantization_size)
+        
     dataloders['val'] = DataLoader(datasets['val'], collate_fn=val_collate_fn,
-                                       num_workers=cfg.num_workers,batch_size=cfg.batch_size, pin_memory=True)
+                                       num_workers=cfg.num_workers,batch_size=cfg.val_batch_size, pin_memory=True)
+
 
     return dataloders['train'],  dataloders['val']
 
@@ -89,9 +96,16 @@ def make_datasets(cfg):
         transforms.ToTensor()
         ])
 
-    datasets['train'] = New7Scene_dataset(data_dir = cfg.data_dir, scene = cfg.scene, seq_list= cfg.train_seq_list, transform_depth=transform_depth, transform_pcd=train_transform,  set_transform=train_set_transform)#
+    transform_rgb  = transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.ToTensor()
+        ])
 
-    datasets['val'] = New7Scene_dataset(data_dir = cfg.data_dir, scene = cfg.scene, seq_list= cfg.val_seq_list, transform_depth=transform_depth, )
+    datasets['train'] = New7Scene_dataset(data_dir = cfg.data_dir, scene = cfg.scene, seq_list= cfg.train_seq_list, input_type=cfg.input_type, transform_depth=transform_depth, transform_rgb=transform_rgb, transform_pcd=train_transform,  set_transform=train_set_transform)#
+
+    datasets['val'] = New7Scene_dataset(data_dir = cfg.data_dir, scene = cfg.scene, seq_list= cfg.val_seq_list, transform_depth=transform_depth, input_type=cfg.input_type,)
 
     return datasets
+
 

@@ -1,4 +1,10 @@
 
+# Train
+
+
+
+
+
 #  Update
     2021.8.29: 添加了各种test 函数，修改了数据加载类，修改了深度图像网络，添加了稀疏网络处理模块,模块测试通过。
     2021.9.01: 更新 了训练流程，配置，日志模块，ponit++ backbone 待修改，spbackbone 可以用。
@@ -52,3 +58,9 @@ CUDNN_LIBRARY_PATH:FILEPATH=/home/c2/anaconda3/envs/cp2/lib/libcudnn.so
 # 3. Note
 强制合并代码
 git pull --rebase origin main
+
+
+Resource :
+https://github.com/youngguncho/HourglassPose-Pytorch
+
+https://github.com/V-Soboleva/PoseNet

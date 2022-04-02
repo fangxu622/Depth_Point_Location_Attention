@@ -89,7 +89,7 @@ class data2d3d_loader(Dataset):
 
 class New7Scene_dataset(Dataset):
 
-    def __init__(self, data_dir ="" , pcd_dir = "/media/fangxu/Disk4T/LQ/pointcloud", scene ="chess",seq_list=[1,2,3,4], voxel_size=0.05, transform_rgb=None, transform_depth = None, transform_pcd= None, set_transform = None):
+    def __init__(self, data_dir ="" , pcd_dir = "/media/fangxu/Disk4T/LQ/pointcloud", scene ="chess",seq_list=[1,2,3,4], input_type = [ "rgb","depth","pcd"] , voxel_size=0.05, transform_rgb=None, transform_depth = None, transform_pcd= None, set_transform = None):
         super(New7Scene_dataset, self).__init__()
 
         # datadir ：
@@ -128,6 +128,7 @@ class New7Scene_dataset(Dataset):
         self.transform_pcd = transform_pcd
         self.set_transform = set_transform
         self.labels_path = labels_path
+        self.input_type = input_type
 
         if transform_depth == None:
             self.transform_depth = transforms.Compose([
@@ -137,32 +138,59 @@ class New7Scene_dataset(Dataset):
         else:
             self.transform_depth = transform_depth
 
+        if transform_pcd == None:
+            self.transform_pcd = transforms.Compose([
+                               transforms.ToTensor(),
+                               # transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+                             ])
+        else:
+            self.transform_pcd = transform_pcd
+
+        if transform_rgb == None:
+            self.transform_rgb = transforms.Compose([
+                               transforms.ToTensor(),
+                               transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+                             ])
+        else:
+            self.transform_rgb = transform_rgb
+
     def __getitem__(self, index):
+        
+        result = []
+        
+        if "rgb" in self.input_type:
+            img_rgb = Image.open( self.imgs_path[index] )
+            img_rgb = self.transform_rgb(img_rgb)
+            result.append( img_rgb.to(torch.float) )
+            #img_depth = cv2.imread( self.depthimgs[index] , 2 ) # cv2.IMREAD_ANYDEPTH
 
-        #img_depth = cv2.imread( self.depthimgs[index] , 2 ) # cv2.IMREAD_ANYDEPTH
-        img_depth = Image.open( self.depth_path[index] ).convert('I')
-        img_depth= self.transform_depth(img_depth)
-        img_depth = img_depth.type(torch.float)/1000.0
+        if "depth" in self.input_type:
+            img_depth = Image.open( self.depth_path[index] ).convert('I')
+            img_depth= self.transform_depth(img_depth)
+            img_depth = img_depth.type(torch.float)/1000.0
 
-        pcd_data =  open3d.io.read_point_cloud( self.pcd_path[index] )
-        pcd_tensor = torch.from_numpy(np.asarray(pcd_data.points)).to(torch.float)
-        if self.transform_pcd is not None:
-            pcd_tensor = self.transform_pcd(pcd_tensor)
+            result.append( img_depth.to(torch.float) )
+
+        if "pcd" in self.input_type:
+            pcd_data =  open3d.io.read_point_cloud( self.pcd_path[index] )
+            pcd_tensor = torch.from_numpy(np.asarray(pcd_data.points))
+            
+            result.append( pcd_tensor.to(torch.float) )
 
         pose = np.loadtxt( self.labels_path[index] )
-        q =  quaternion.from_rotation_matrix(pose[:3,:3] )
-        t = pose[:3,3]
-        q_arr = quaternion.as_float_array(q)#[np.newaxis,:]
 
-        result = ( img_depth, 
-                    pcd_tensor.to(torch.float), 
-                    torch.from_numpy(t).to(torch.float), 
-                    torch.from_numpy(q_arr).to(torch.float) )
+        t = pose[:3,3]
+        result.append(torch.from_numpy(t).to(torch.float) )
+
+        q =  quaternion.from_rotation_matrix(pose[:3,:3] )
+        q_arr = quaternion.as_float_array(q)#[np.newaxis,:]
+        result.append( torch.from_numpy(q_arr).to(torch.float) )
 
         return  result
 
     def __len__(self):
         return len(self.labels_path)
+
 
 
 class TrainingTuple:
