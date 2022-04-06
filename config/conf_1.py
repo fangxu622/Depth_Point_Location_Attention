@@ -34,13 +34,13 @@ pretrain_weight =None #"/media/fangxu/Disk4T/fangxuPrj/Depth_Point_Location_Atte
 model_name="MinkFPN_GeM"
 
 ## optimazation setting
-learning_rate = 5e-5
+learning_rate = 1e-4
 train_batch_size =25
 val_batch_size =25
-epochs = 100
+epochs = 150
 interval = 1
 
-beta = 300
+beta = 350
 ## log setting
 log_file = "MinkFPN_GeM"
 print_every = 10
