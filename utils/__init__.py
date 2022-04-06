@@ -1,1 +1,1 @@
-from .utils import median,norm_q
+from .utils import median, quaternion_angular_error

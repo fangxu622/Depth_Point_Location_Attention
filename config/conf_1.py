@@ -20,6 +20,7 @@ input_type = [ "depth","pcd" ]
 # Model setting
 feature_size = 256
 output_dim =  256      # Size of the final descriptor
+
 #DepthNet_out_dim = 256
 # Size of the local features from backbone network (only for MinkNet based models)
 # For PointNet-based models we always use 1024 intermediary features
@@ -33,14 +34,16 @@ pretrain_weight =None #"/media/fangxu/Disk4T/fangxuPrj/Depth_Point_Location_Atte
 model_name="MinkFPN_GeM"
 
 ## optimazation setting
-learning_rate = 1e-5
-train_batch_size =10
-val_batch_size =1
-epochs = 500
+learning_rate = 5e-5
+train_batch_size =25
+val_batch_size =25
+epochs = 100
+interval = 1
 
+beta = 300
 ## log setting
 log_file = "MinkFPN_GeM"
-print_every = 4
+print_every = 10
 
 save_dir = "/media/fangxu/Disk4T/fangxuPrj/Depth_Point_Location_Attention/Res"
 save_prj="experiment_1"

@@ -104,7 +104,7 @@ for e in range(1,config.epochs+1):
         loss.backward()
         adam.step()
         t = t+1
-
+ 
         if i % config.print_every == 0:
             logger.info('epoch {}, batch:{}/{}, loss: {}'.format(e, i , data_length , loss.data.item() ) )
 
@@ -115,7 +115,7 @@ for e in range(1,config.epochs+1):
 
     pdist = nn.PairwiseDistance(2)
 
-    if (e > -1 and e % 10 == 0):
+    if (e > -1 and e % config.interval == 0):
 
         model.eval()
         with torch.no_grad():

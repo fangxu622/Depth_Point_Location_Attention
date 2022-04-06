@@ -64,3 +64,7 @@ Resource :
 https://github.com/youngguncho/HourglassPose-Pytorch
 
 https://github.com/V-Soboleva/PoseNet
+
+https://github.com/jac99/MinkLoc3D
+
+https://github.com/jac99/MinkLoc3Dv2

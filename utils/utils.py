@@ -2,14 +2,19 @@
 
 from PIL import Image
 import torch
+import numpy as np
 
+# def quaternion_angular_error(q1, q2):
+#     d = abs(np.dot(q1, q2))
+#     d = min(1.0, max(-1.0, d))
+#     theta = 2 * np.arccos(d) * 180 / np.pi
+#     return theta
 
-def norm_q(x_q_base):
-
-    Norm = torch.norm(x_q_base, 2, 1)
-    norm_q_base = torch.div(torch.t(x_q_base), Norm)
-    
-    return torch.t(norm_q_base)
+def quaternion_angular_error(q1,q2):
+    d = torch.abs( torch.mul(q1,q2).sum(1)  )
+    d[d>1.0] = 1.0
+    theta = 2 * torch.acos( d ) * 180.0 /np.pi
+    return theta
 
 
 def median(lst):
