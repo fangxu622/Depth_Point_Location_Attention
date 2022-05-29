@@ -16,8 +16,6 @@ import torch.nn.functional as F
 from torchvision.transforms.transforms import ToPILImage
 from .model_utils import make_model 
 
-
-
 # process RGB or depth I
 class Depth_Net(nn.Module):
     def __init__(self, out_channels=10):
@@ -50,7 +48,6 @@ class Depth_Net(nn.Module):
         x = x.view(x.size(0), -1)
         x = self.fc_last(x)
         return x 
-
 
 class AttentionBlock(nn.Module):
     def __init__(self, in_channels):
@@ -91,6 +88,11 @@ class Fuse_PPNet(nn.Module):
         pcd_out_channel = cfg.output_dim 
 
         # 2. create depth net  
+        #base_model = models.resnet34(pretrained=True)
+        #base_model.conv1 = nn.Conv2d(1,64,kernel_size=3,stride=1,padding=3,bias=False)
+        #seq_net_list = list(base_model.children())[:-1]
+        #self.Depth_Net = nn.Sequential( *seq_net_list )
+
         self.Depth_Net = Depth_Net( out_channels = pcd_out_channel )
         
         if fixed_weight:
@@ -113,8 +115,10 @@ class Fuse_PPNet(nn.Module):
     def forward(self, x_depth, x_pcd):
 
         x_depth = self.Depth_Net(x_depth)
+        #print(x_depth.shape)
         x_pcd = self.Pcd_Net(x_pcd)
-        fusion_vector = torch.cat( [x_depth, x_pcd], dim = 1 )
+        
+        fusion_vector = torch.cat( [x_depth.squeeze(-1).squeeze(-1), x_pcd], dim = 1 )
         att_out = self.attention( fusion_vector )
 
         dropout_on = self.training or self.bayesian
@@ -158,3 +162,37 @@ class Pose_Depth_Net(nn.Module):
         #x = x.view(x.size(0), -1)
         x = self.fc_last(x)
         return x[:,:3],x[:,3:]
+
+
+class Pose_Pcd_Net(nn.Module):
+    def __init__(self, cfg=None, fixed_weight=False, dropout_rate=0.2, bayesian=False):
+        super(Pose_Pcd_Net, self).__init__()
+        
+        self.bayesian = bayesian
+        self.dropout_rate = dropout_rate
+
+        # 1. create pcd net
+        self.Pcd_Net = make_model(cfg) # out put (B , 256)
+        #self.Pcd_Net.load_state_dict( torch.load(cfg.pretrain_weight), strict = False)
+        pcd_out_channel = cfg.output_dim 
+            
+        self.fc_position = nn.Linear( pcd_out_channel , 3, bias=True)
+        self.fc_rotation = nn.Linear( pcd_out_channel , 4, bias=True)
+        
+        init_modules = [self.fc_position, self.fc_rotation]
+        for module in init_modules:
+            if isinstance(module, nn.Conv2d) or isinstance(module, nn.Linear):
+                nn.init.kaiming_normal_(module.weight)
+                if module.bias is not None:
+                    nn.init.constant_(module.bias, 0)
+
+    def forward(self, x):
+
+        x = self.Pcd_Net(x)
+        #x = torch.flatten(x,1)
+        x = x.view(x.size(0), -1)
+
+        position = self.fc_position(x)
+        rotation = self.fc_rotation(x)
+
+        return position, rotation

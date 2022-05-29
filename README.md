@@ -1,7 +1,7 @@
 
 # Train
 
-
+python config/conf_pcd.py
 
 
 
@@ -68,3 +68,31 @@ https://github.com/V-Soboleva/PoseNet
 https://github.com/jac99/MinkLoc3D
 
 https://github.com/jac99/MinkLoc3Dv2
+
+学习率衰减策略：https://blog.csdn.net/a906958671/article/details/104967447
+
+
+cmake -DCMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_PREFIX=/usr/local/opencv34 -D WITH_CUDA=OFF -D BUILD_TIFF=ON -D WITH_GTK=ON -D WITH_QT=OFF -D PYTHON3_EXECUTABLE=/home/fangxu/anaconda3/envs/det/bin/python \
+-D BUILD_opencv_hdf=OFF \
+-D OPENCV_EXTRA_MODULES_PATH=../opencv_contrib/modules ..
+
+/home/fangxu/anaconda3/envs/det/bin/python
+
+-D PYTHON3_INCLUDE_DIR=/home/fangxu/anaconda3/envs/det/include \
+-D PYTHON3_INCLUDE_DIR=/home/fangxu/anaconda3/envs/det/include \
+-D PYTHON_LIBRARY=/home/fangxu/anaconda3/envs/det/lib/libpython3.8.so \
+-D PYTHON3_NUMPY_INCLUDE_DIRS=/home/fangxu/anaconda3/envs/det/lib/python3.8/site-packages/numpy/core/include \
+
+
+-D PYTHON_LIBRARY=/home/fangxu/anaconda3/envs/det/lib/libpython3.8.so \
+-D PYTHON3_NUMPY_INCLUDE_DIRS=/home/fangxu/anaconda3/envs/det/lib/python3.8/site-packages/numpy/core/include \
+-D PYTHON3_INCLUDE_DIR=/home/fangxu/anaconda3/envs/det/include \
+-D PYTHON_INCLUDE_DIR2=/home/fangxu/anaconda3/envs/det/include/python3.8 \
+
+-D PYTHON3_INCLUDE_DIR=/home/fangxu/anaconda3/envs/det/include/python3.8 \
+-D PYTHON3_NUMPY_INCLUDE_DIRS=/home/fangxu/anaconda3/envs/det/lib/python3.8/site-packages/numpy/core/include \
+
+
+cmake -DCMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_PREFIX=/usr/local/opencv34 -D WITH_CUDA=OFF -D BUILD_TIFF=ON -D WITH_GTK=ON -D WITH_QT=OFF -D PYTHON3_EXECUTABLE=/home/fangxu/anaconda3/bin/python \
+-D BUILD_opencv_hdf=OFF \
+-D OPENCV_EXTRA_MODULES_PATH=../opencv_contrib/modules ..

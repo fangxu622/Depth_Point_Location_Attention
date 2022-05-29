@@ -13,7 +13,7 @@ train_seq_list = [1,2,4,6]#
 val_seq_list = [3,5]
 aug_mode = 1 
 mink_quantization_size = 0.01
-num_workers = 8
+num_workers = 4
 input_type = [ "depth","pcd" ]
 
 
@@ -29,21 +29,21 @@ layers = 1,1,1
 num_top_down = 1
 conv0_kernel_size = 5
 
-pretrain_weight =None #"/media/fangxu/Disk4T/fangxuPrj/Depth_Point_Location_Attention/Res/experiment_1/chess/Best_params_pcd_att_90.pt"
+pretrain_weight ="/media/fangxu/Disk4T/fangxuPrj/Depth_Point_Location_Attention/Res/minkloc3d_baseline.pth"
 
 model_name="MinkFPN_GeM"
 
 ## optimazation setting
-learning_rate = 1e-4
-train_batch_size =25
-val_batch_size =25
-epochs = 150
+learning_rate = 1e-5
+train_batch_size =2
+val_batch_size =2
+epochs = 100
 interval = 1
 
-beta = 350
+beta = 10
 ## log setting
 log_file = "MinkFPN_GeM"
 print_every = 10
 
 save_dir = "/media/fangxu/Disk4T/fangxuPrj/Depth_Point_Location_Attention/Res"
-save_prj="experiment_1"
+save_prj="fuse_exp1"

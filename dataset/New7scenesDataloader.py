@@ -86,10 +86,9 @@ class data2d3d_loader(Dataset):
     def __len__(self):
         return len(self.labels_path)
 
-
 class New7Scene_dataset(Dataset):
 
-    def __init__(self, data_dir ="" , pcd_dir = "/media/fangxu/Disk4T/LQ/pointcloud", scene ="chess",seq_list=[1,2,3,4], input_type = [ "rgb","depth","pcd"] , voxel_size=0.05, transform_rgb=None, transform_depth = None, transform_pcd= None, set_transform = None):
+    def __init__(self, data_dir ="" , pcd_dir = "/media/fangxu/Disk4T/LQ/pointcloud", scene ="chess",seq_list=[1,2,3,4], input_type = [ "rgb","depth","pcd"] , uniform_down_sample=30, transform_rgb=None, transform_depth = None, transform_pcd= None, set_transform = None):
         super(New7Scene_dataset, self).__init__()
 
         # datadir ：
@@ -108,7 +107,7 @@ class New7Scene_dataset(Dataset):
                 seq_idx = "seq-{}".format(i)
             
             sequenceDir = os.path.join(data_dir ,seq_idx)
-            pcd_dir_tmp = os.path.join(pcd_dir ,seq_idx)
+            pcd_dir_tmp = os.path.join(pcd_dir ,seq_idx )# + "_local"
             poselabelsNames = glob.glob(sequenceDir+"/*.pose.txt")
             poselabelsNames.sort()
 
@@ -118,7 +117,7 @@ class New7Scene_dataset(Dataset):
                 imgs_path.append( label.replace("pose.txt","color.png") )
                 pcd_path.append( os.path.join(pcd_dir_tmp, label.split("/")[-1].replace("pose.txt","cloud.ply"))  )
 
-        self.voxel_size =voxel_size
+        self.uniform_down_sample = uniform_down_sample
         self.data_dir = data_dir
         self.pcd_dir = pcd_dir
         self.imgs_path = imgs_path
@@ -167,31 +166,35 @@ class New7Scene_dataset(Dataset):
         if "depth" in self.input_type:
             img_depth = Image.open( self.depth_path[index] ).convert('I')
             img_depth= self.transform_depth(img_depth)
-            img_depth = img_depth.type(torch.float)/1000.0
+            #img_depth = img_depth.to(torch.float)/1000.0
+            img_depth = np.array(img_depth)[np.newaxis,:]
+            img_depth = torch.from_numpy(img_depth).to(torch.float)/1000.0
 
-            result.append( img_depth.to(torch.float) )
+            result.append( img_depth )
 
         if "pcd" in self.input_type:
             pcd_data =  open3d.io.read_point_cloud( self.pcd_path[index] )
-            pcd_tensor = torch.from_numpy(np.asarray(pcd_data.points))
+            if self.uniform_down_sample:
+                #pcd_data= pcd_data.voxel_down_sample(voxel_size= self.voxel_size)
+                pcd_data = pcd_data.uniform_down_sample(self.uniform_down_sample)
+
+            pcd_tensor = torch.from_numpy(np.asarray(pcd_data.points) )
             
             result.append( pcd_tensor.to(torch.float) )
 
         pose = np.loadtxt( self.labels_path[index] )
 
         t = pose[:3,3]
-        result.append(torch.from_numpy(t).to(torch.float) )
+        result.append(torch.from_numpy(t.copy()).to(torch.float) )
 
         q =  quaternion.from_rotation_matrix(pose[:3,:3] )
         q_arr = quaternion.as_float_array(q)#[np.newaxis,:]
-        result.append( torch.from_numpy(q_arr).to(torch.float) )
+        result.append( torch.from_numpy(q_arr ).to(torch.float) )
 
         return  result
 
     def __len__(self):
         return len(self.labels_path)
-
-
 
 class TrainingTuple:
     # Tuple describing an element for training/validation
@@ -211,7 +214,6 @@ class TrainingTuple:
         self.positives = positives
         self.non_negatives = non_negatives
         self.position = position
-
 
 class TrainTransform:
     def __init__(self, aug_mode):

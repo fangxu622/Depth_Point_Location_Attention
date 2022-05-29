@@ -48,9 +48,9 @@ logger.addHandler(handler)
 train_loader , test_loader = make_dataloaders(config)
 model = Fuse_PPNet(config)
 
-# if config.pretrain_weight is not None:
-#     model.load_state_dict( torch.load(config.pretrain_weight) )
-
+if config.pretrain_weight is not None:
+    model.load_state_dict( torch.load(config.pretrain_weight) )
+    print("load pretrain weight")
 data_length = len(train_loader)
 criterion = standard_pose_loss(config)
 criterion.to(device)
@@ -64,7 +64,7 @@ optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate, betas=
 Best_Pos_error = 9999.0
 Best_Ort_error = 9999.0
 
-for e in range(1,config.epochs+1):
+for epoch in range(1,config.epochs+1):
     model.train()
     loss_t_acc, loss_q_acc, loss_acc = [], [], []
 
@@ -73,11 +73,11 @@ for e in range(1,config.epochs+1):
         depth_input = depth_base.to(device)
         pcd_input = {e: pcd_base[e].to(device) for e in pcd_base}
         t_target, q_target  = base_t.to(device), base_q.to(device)
-        
-        optimizer.zero_grad()
 
         t_pred, q_pred = model(depth_input, pcd_input)
         loss , loss_t_item, loss_q_item  = criterion(t_pred, q_pred, t_target, q_target)
+
+        optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
@@ -85,8 +85,8 @@ for e in range(1,config.epochs+1):
         loss_q_acc.append( loss_q_item )
         loss_acc.append( loss.item() )
 
-        if i % config.print_every == 0:
-            logger.info('epoch {}, batch:{}/{}, loss:{}, loss_T:{}, loss_Q:{} '.format(e, i , data_length ,
+        if (i+1) % config.print_every == 0:
+            logger.info('epoch {}, batch:{}/{}, loss:{}, loss_T:{}, loss_Q:{} '.format(e, i+1 , data_length ,
                                                              round(loss.item(), 5),
                                                              round(loss_t_item, 5),
                                                              round(loss_q_item, 5)   ))
@@ -95,12 +95,12 @@ for e in range(1,config.epochs+1):
     logger.info('Epoch:{}, Average orientation loss over epoch = {}'.format(e, round( np.average(loss_q_acc) , 5)  ))
     logger.info('Epoch:{}, Average loss over epoch = {}'.format(e, round( np.average(loss_acc), 5 )  ))
 
-    if (e > -1 and e % config.interval == 0):
+    if (epoch > -1 and e % config.interval == 0):
         model.eval()
         with torch.no_grad():
             dis_Err_Count, ort_Err_count = [], []
 
-            for i, (depth_base , pcd_base, base_t,base_q) in enumerate(tqdm(test_loader) ):
+            for _ , (depth_base , pcd_base, base_t,base_q) in enumerate(tqdm(test_loader) ):
                 depth_input = depth_base.to(device)
                 pcd_input = {e: pcd_base[e].to(device) for e in pcd_base}
                 t_gt, q_gt = base_t.to(device) , base_q.to(device)
@@ -136,3 +136,5 @@ for e in range(1,config.epochs+1):
 #isExists = os.path.exists( save_best_path )
 #if (isExists):
 #os.remove(save_best_path )
+
+# model = Pose_Depth_Net(out_channels= 7)

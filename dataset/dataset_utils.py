@@ -93,7 +93,7 @@ def make_datasets(cfg):
     transform_depth  = transforms.Compose([
         transforms.Resize(256),
         transforms.CenterCrop(224),
-        transforms.ToTensor()
+        #transforms.ToTensor()
         ])
 
     transform_rgb  = transforms.Compose([
@@ -102,9 +102,9 @@ def make_datasets(cfg):
         transforms.ToTensor()
         ])
 
-    datasets['train'] = New7Scene_dataset(data_dir = cfg.data_dir, scene = cfg.scene, seq_list= cfg.train_seq_list, input_type=cfg.input_type, transform_depth=transform_depth, transform_rgb=transform_rgb, transform_pcd=train_transform,  set_transform=train_set_transform)#
+    datasets['train'] = New7Scene_dataset(data_dir = cfg.data_dir, scene = cfg.scene, seq_list= cfg.train_seq_list, input_type=cfg.input_type, uniform_down_sample=cfg.uniform_down_sample ,  transform_depth=transform_depth, transform_rgb=transform_rgb, transform_pcd=train_transform,  set_transform=train_set_transform)
 
-    datasets['val'] = New7Scene_dataset(data_dir = cfg.data_dir, scene = cfg.scene, seq_list= cfg.val_seq_list, transform_depth=transform_depth, input_type=cfg.input_type,)
+    datasets['val'] = New7Scene_dataset(data_dir = cfg.data_dir, scene = cfg.scene, seq_list= cfg.val_seq_list, input_type=cfg.input_type, uniform_down_sample=cfg.uniform_down_sample ,transform_depth=transform_depth)
 
     return datasets
 
